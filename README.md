@@ -53,4 +53,4 @@ FM_Denoising_DAS/
 
 ## Contact
 
-For questions or collaboration inquiries, please reach out to the [UW Fiber Lab](https://uwfiberlab.github.io/) or open an issue in this repo.
+For questions or collaboration inquiries, please reach out to the [UW Fiber Lab](https://github.com/uwfiberlab) or open an issue in this repo.
