@@ -45,7 +45,6 @@ FM_Denoising_DAS/
 ├── data/               # Contains raw or preprocessed DAS data (not included)
 ├── models/             # Saved model checkpoints and architectures
 ├── env.yml             # Conda environment definition
-├── main.py             # Main entry point
 └── README.md           # Project documentation
 ```
 
