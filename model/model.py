@@ -176,3 +176,186 @@ class MaxBlurPool2d(nn.Module):
         elif kernel_size == 7:
             f = torch.tensor([1., 6., 15., 20., 15., 6., 1.])
         return f
+
+
+class AttentionGate(nn.Module):
+    def __init__(self, nch):
+        super(AttentionGate, self).__init__()
+        self.conv1 = nn.Conv2d(nch, nch, (1, 1), padding=0)
+        self.conv2 = nn.Conv2d(nch, nch, (1, 1), padding=0)
+        self.conv3 = nn.Conv2d(nch, nch, (1, 1), padding=0)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, enc, dec):
+        x = self.conv1(enc)
+        y = self.conv2(dec)
+        z = self.relu(x+y)
+        z = self.sigmoid(self.conv3(z))
+
+        return enc * z
+
+
+class dataflow(nn.Module):
+
+    def __init__(self, X, Nx_sub=1500, stride=750, mask_ratio=0.1, n_masks=10):
+        """ This code assumes input size to be Ni, Nx=1500*n, Nt=1500；
+            extract 1500^2 square samples and do masking in a bootstrap manner"""
+        self.X = X  # DAS matrix
+        self.Ni = X.shape[0]
+        self.Nx = X.shape[2]
+        self.Nt = X.shape[3]
+        self.Nx_sub = Nx_sub  # Number of channels per sample
+        self.stride = stride
+        self.n_masks = n_masks  # number of times repeating the mask
+        self.mask_traces = int(mask_ratio * Nx_sub)  # the number traces to mask
+        self.__data_generation
+
+    def __len__(self):
+        """ Number of samples """
+        # return int(self.n_masks * self.Ni * ((self.Nx - self.Nx_sub) / self.stride + 1))
+        return int(self.n_masks * self.Ni * ((self.Nx - self.Nx_sub) // self.stride + 1))
+
+    def __getitem__(self, idx):
+        return (self.samples[idx], self.masks[idx]), self.masked_samples[idx]
+
+    def __data_generation(self):
+        X = self.X
+        Ni = self.Ni
+        Nt = self.Nt
+        Nx = self.Nx
+        Nx_sub = self.Nx_sub
+        stride = self.stride
+        n_masks = self.n_masks
+        mask_traces = self.mask_traces
+
+        n_total = self.__len__()  # total number of samples
+        # print(n_total, Nx_sub, Nt)
+        samples = np.zeros((n_total, Nx_sub, Nt), dtype=np.float32)
+        masks = np.ones_like(samples, dtype=np.float32)
+
+        # Loop over samples
+        for k in range(n_masks):
+            for i in range(Ni):
+                for j, st_ch in enumerate(np.arange(0, Nx-Nx_sub+1, stride)):
+                    # %% slice each big image along channels
+                    s = (k * Ni + i) * int((Nx-Nx_sub)//stride+1) + j
+                    samples[s, :, :] = X[i, st_ch:st_ch+Nx_sub, :]
+
+                    rng = np.random.default_rng(s + 11)
+                    trace_masked = rng.choice(Nx_sub, size=mask_traces, replace=False)
+                    masks[s, trace_masked, :] = masks[s, trace_masked, :] * 0
+
+        self.samples = samples
+        self.masks = masks
+        self.masked_samples = samples * (1 - masks)
+        pass
+
+
+class dataflow_nomask(nn.Module):
+
+    def __init__(self, X, Nx_sub=1500, stride=750):
+        """ This code assumes input size to be Ni, Nx=1500*n, Nt=1500；
+            extract 1500^2 square samples"""
+
+        self.X = X  # DAS matrix
+        self.Ni = X.shape[0]
+        self.Nx = X.shape[1]
+        self.Nt = X.shape[2]
+        self.Nx_sub = Nx_sub  # Number of channels per sample
+        self.stride = stride
+        self.__data_generation()
+
+    def __len__(self):
+        """ Number of samples """
+        return int(self.Ni * ((self.Nx - self.Nx_sub) / self.stride + 1))
+
+    def __getitem__(self, idx):
+        return self.samples[idx]
+
+    def __data_generation(self):
+        X = self.X
+        Ni = self.Ni
+        Nt = self.Nt
+        Nx = self.Nx
+        Nx_sub = self.Nx_sub
+        stride = self.stride
+
+        n_total = self.__len__()  # total number of samples
+        samples = np.zeros((n_total, Nx_sub, Nt), dtype=np.float32)
+
+        # Loop over samples
+        for i in range(Ni):
+            for j, st_ch in enumerate(np.arange(0, Nx-Nx_sub+1, stride)):
+                # %% slice each big image along channels
+                s = i * int((Nx-Nx_sub)//stride+1) + j
+                samples[s, :, :] = X[i, st_ch:st_ch+Nx_sub, :]
+        self.samples = samples
+
+        pass
+
+class datalabel(nn.Module):
+
+    def __init__(self, X, Y, Nx_sub=1500, stride=750, mask_ratio=0.1, n_masks=10):
+        """ This code assumes input size to be Ni, Nx=1500*n, Nt=1500；
+            extract 1500^2 square samples and do masking in a bootstrap manner"""
+
+        self.X = X  # DAS matrix
+        self.Y = Y  # DAS matrix
+        self.Ni = X.shape[0]
+        self.Nx = X.shape[1]
+        self.Nt = X.shape[2]
+        self.Nx_sub = Nx_sub  # Number of channels per sample
+        self.stride = stride
+        self.n_masks = n_masks  # number of times repeating the mask
+        self.mask_traces = int(mask_ratio * Nx_sub)  # the number traces to mask
+        self.__data_generation()
+
+    def __len__(self):
+        """ Number of samples """
+        return int(self.n_masks * self.Ni * ((self.Nx - self.Nx_sub) / self.stride + 1))
+
+    def __getitem__(self, idx):
+        return (self.samples[idx], self.masks[idx]), self.masked_labels[idx]
+
+    def __data_generation(self):
+        X = self.X
+        Y = self.Y
+        Ni = self.Ni
+        Nt = self.Nt
+        Nx = self.Nx
+        Nx_sub = self.Nx_sub
+        stride = self.stride
+        n_masks = self.n_masks
+        mask_traces = self.mask_traces
+
+        n_total = self.__len__()  # total number of samples
+        samples = np.zeros((n_total, Nx_sub, Nt), dtype=np.float32)
+        labels = np.zeros((n_total, Nx_sub, Nt), dtype=np.float32)
+        masks = np.ones_like(samples, dtype=np.float32)
+        print(samples.shape)
+
+        # Loop over samples
+        for k in range(n_masks):
+            for i in range(Ni):
+                for j, st_ch in enumerate(np.arange(0, Nx-Nx_sub+1, stride)):
+                    # %% slice each big image along channels
+                    s = (k * Ni + i) * int((Nx-Nx_sub)//stride+1) + j
+                    samples[s, :, :] = X[i, st_ch:st_ch + Nx_sub, :]
+                    labels[s, :, :] = Y[i, st_ch:st_ch + Nx_sub, :]
+
+                    rng = np.random.default_rng(s + 11)
+                    trace_masked = rng.choice(Nx_sub, size=mask_traces, replace=False)
+                    masks[s, trace_masked, :] = masks[s, trace_masked, :] * 0
+                    
+                    del trace_masked, rng
+                    gc.collect()
+
+        self.samples = samples
+        self.masks = masks
+        self.masked_labels = labels * (1 - masks)
+        
+        del X, Y
+        gc.collect()
+        
+        pass
