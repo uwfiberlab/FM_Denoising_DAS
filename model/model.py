@@ -203,18 +203,17 @@ class dataflow(nn.Module):
             extract 1500^2 square samples and do masking in a bootstrap manner"""
         self.X = X  # DAS matrix
         self.Ni = X.shape[0]
-        self.Nx = X.shape[2]
-        self.Nt = X.shape[3]
+        self.Nx = X.shape[1]
+        self.Nt = X.shape[2]
         self.Nx_sub = Nx_sub  # Number of channels per sample
         self.stride = stride
         self.n_masks = n_masks  # number of times repeating the mask
         self.mask_traces = int(mask_ratio * Nx_sub)  # the number traces to mask
-        self.__data_generation
+        self.__data_generation()
 
     def __len__(self):
         """ Number of samples """
-        # return int(self.n_masks * self.Ni * ((self.Nx - self.Nx_sub) / self.stride + 1))
-        return int(self.n_masks * self.Ni * ((self.Nx - self.Nx_sub) // self.stride + 1))
+        return int(self.n_masks * self.Ni * ((self.Nx - self.Nx_sub) / self.stride + 1))
 
     def __getitem__(self, idx):
         return (self.samples[idx], self.masks[idx]), self.masked_samples[idx]
@@ -230,7 +229,7 @@ class dataflow(nn.Module):
         mask_traces = self.mask_traces
 
         n_total = self.__len__()  # total number of samples
-        # print(n_total, Nx_sub, Nt)
+        print(n_total, Nx_sub, Nt)
         samples = np.zeros((n_total, Nx_sub, Nt), dtype=np.float32)
         masks = np.ones_like(samples, dtype=np.float32)
 
